@@ -486,7 +486,9 @@ def generate(payload: str = '', target_image: str = '', source_image: str = '', 
              partition_timestamps: str = '', disable_fec_computation: str = '', disable_verity_computation: str = '',
              is_partial_update: str = '', full_boot: str = '', disable_vabc: str = '', enable_vabc_xor: str = '',
              force_minor_version: str = '', compressor_types: str = ''):
-    pass
+    options.FLAGS_payload = payload
+    options.FLAGS_target_image = target_image
+    options.FLAGS_source_image = source_image
 
 
 def hash_(unsigned_payload: str = '', signature_size: str = '', metadata_hash_file: str = '',
