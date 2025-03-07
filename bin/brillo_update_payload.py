@@ -327,7 +327,7 @@ def cmd_generate():
     payload_type = get_payload_type()
     extract_payload_images(payload_type)
     print(f"Generating {payload_type} update.")
-    GENERATOR_ARGS = [f'--out_file="{options.FLAGS_payload}"', ]
+    GENERATOR_ARGS = [f'--out_file={options.FLAGS_payload}', ]
     old_partitions = ""
     new_partitions = ""
     partition_names = ""
@@ -349,44 +349,44 @@ def cmd_generate():
             old_partitions += t if t else ''
         new_mapfiles += DST_PARTITIONS_MAP[part] if DST_PARTITIONS_MAP.get(part) else ''
         old_mapfiles += SRC_PARTITIONS_MAP[part] if SRC_PARTITIONS_MAP.get(part) else ''
-    GENERATOR_ARGS.append(f'--partition_names="{partition_names}"')
-    GENERATOR_ARGS.append(f'--new_partitions="{new_partitions}"')
-    GENERATOR_ARGS.append(f'--new_mapfiles="{new_mapfiles}"')
+    GENERATOR_ARGS.append(f'--partition_names={partition_names}')
+    GENERATOR_ARGS.append(f'--new_partitions={new_partitions}')
+    GENERATOR_ARGS.append(f'--new_mapfiles={new_mapfiles}')
     if options.FLAGS_is_partial_update == 'true':
         GENERATOR_ARGS.append('--is_partial_update="true"')
         if not globals()["FORCE_MINOR_VERSION"]:
             globals()["FORCE_MINOR_VERSION"]='7'
     if payload_type == 'delta':
-        GENERATOR_ARGS.append(f"--old_partitions='{old_partitions}'")
-        GENERATOR_ARGS.append(f'--old_mapfiles="{old_mapfiles}"')
+        GENERATOR_ARGS.append(f"--old_partitions={old_partitions}")
+        GENERATOR_ARGS.append(f'--old_mapfiles={old_mapfiles}')
         if options.FLAGS_disable_fec_computation:
-            GENERATOR_ARGS.append(f'--disable_fec_computation="{options.FLAGS_disable_fec_computation}"')
+            GENERATOR_ARGS.append(f'--disable_fec_computation={options.FLAGS_disable_fec_computation}')
         if options.FLAGS_disable_verity_computation:
-            GENERATOR_ARGS.append(f'--disable_verity_computation="{options.FLAGS_disable_verity_computation}"')
+            GENERATOR_ARGS.append(f'--disable_verity_computation={options.FLAGS_disable_verity_computation}')
         if options.FLAGS_compressor_types:
-            GENERATOR_ARGS.append(f'--compressor_types="{options.FLAGS_compressor_types}"')
+            GENERATOR_ARGS.append(f'--compressor_types={options.FLAGS_compressor_types}')
     if options.FLAGS_enable_vabc_xor:
         GENERATOR_ARGS.append(
-            f'--enable_vabc_xor="{options.FLAGS_enable_vabc_xor}"'
+            f'--enable_vabc_xor={options.FLAGS_enable_vabc_xor}'
         )
     if options.FLAGS_disable_vabc:
-        GENERATOR_ARGS.append(f'--disable_vabc="{options.FLAGS_disable_vabc}"')
+        GENERATOR_ARGS.append(f'--disable_vabc={options.FLAGS_disable_vabc}')
     if FORCE_MINOR_VERSION:
-        GENERATOR_ARGS.append(f'--minor_version="{FORCE_MINOR_VERSION}"')
+        GENERATOR_ARGS.append(f'--minor_version={FORCE_MINOR_VERSION}')
     if FORCE_MAJOR_VERSION:
-        GENERATOR_ARGS.append(f'--major_version="{FORCE_MAJOR_VERSION}"')
+        GENERATOR_ARGS.append(f'--major_version={FORCE_MAJOR_VERSION}')
     if options.FLAGS_metadata_size_file:
-        GENERATOR_ARGS.append(f'--out_metadata_size_file="{options.FLAGS_metadata_size_file}"')
+        GENERATOR_ARGS.append(f'--out_metadata_size_file={options.FLAGS_metadata_size_file}')
     if options.FLAGS_max_timestamp:
-        GENERATOR_ARGS.append(f'--max_timestamp="{options.FLAGS_max_timestamp}"')
+        GENERATOR_ARGS.append(f'--max_timestamp={options.FLAGS_max_timestamp}')
     if options.FLAGS_partition_timestamps:
-        GENERATOR_ARGS.append(f'--partition_timestamps="{options.FLAGS_partition_timestamps}"')
+        GENERATOR_ARGS.append(f'--partition_timestamps={options.FLAGS_partition_timestamps}')
     if POSTINSTALL_CONFIG_FILE:
-        GENERATOR_ARGS.append(f'--new_postinstall_config_file="{POSTINSTALL_CONFIG_FILE}"')
+        GENERATOR_ARGS.append(f'--new_postinstall_config_file={POSTINSTALL_CONFIG_FILE}')
     if DYNAMIC_PARTITION_INFO_FILE:
-        GENERATOR_ARGS.append(f'--dynamic_partition_info_file="{DYNAMIC_PARTITION_INFO_FILE}"')
+        GENERATOR_ARGS.append(f'--dynamic_partition_info_file={DYNAMIC_PARTITION_INFO_FILE}')
     if APEX_INFO_FILE:
-        GENERATOR_ARGS.append(f'--apex_info_file="{APEX_INFO_FILE}"')
+        GENERATOR_ARGS.append(f'--apex_info_file={APEX_INFO_FILE}')
     print(f"Running delta_generator with args: {GENERATOR_ARGS}")
     call([GENERATOR, *GENERATOR_ARGS])
     print(f"Done generating {payload_type} update.")
