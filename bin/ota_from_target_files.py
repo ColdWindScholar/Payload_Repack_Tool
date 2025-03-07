@@ -256,7 +256,7 @@ from common import IsSparseImage
 from non_ab_ota import GenerateNonAbOtaPackage
 from ota_utils import (UNZIP_PATTERN, FinalizeMetadata, GetPackageMetadata,
                        PropertyFiles, SECURITY_PATCH_LEVEL_PROP_NAME, GetZipEntryOffset)
-
+from brillo_update_payload import generate, hash_, sign
 if sys.hexversion < 0x02070000:
     print("Python 2.7 or newer is required.", file=sys.stderr)
     sys.exit(1)
@@ -417,24 +417,21 @@ class Payload(object):
       additional_args: A list of additional args that should be passed to
           brillo_update_payload script; or None.
     """
+        additional_exec = {}
+        cmd_offset = ''
         if additional_args is None:
             additional_args = []
 
         payload_file = common.MakeTempFile(prefix="payload-", suffix=".bin")
-        cmd = ["brillo_update_payload", "generate",
-               "--payload", payload_file,
-               "--target_image", target_file]
-        if source_file is not None:
-            cmd.extend(["--source_image", source_file])
-            if OPTIONS.disable_fec_computation:
-                cmd.extend(["--disable_fec_computation", "true"])
-            if OPTIONS.disable_verity_computation:
-                cmd.extend(["--disable_verity_computation", "true"])
-        cmd.extend(additional_args)
-        #self._Run(cmd)
-        del cmd[-2]
-        strcmd = "./bin/" + ' '.join(cmd)
-        os.system(strcmd)
+        for i in additional_args:
+            if i.startswith('--'):
+                cmd_offset = i[2:]
+                continue
+            additional_exec[cmd_offset] = i
+        generate(payload=payload_file, target_image=target_file, source_image=source_file if source_file else '',
+                 disable_fec_computation='true' if OPTIONS.disable_fec_computation else '',
+                 disable_verity_computation='true' if OPTIONS.disable_verity_computation else ''
+                 ,**additional_exec)
 
         self.payload_file = payload_file
         self.payload_properties = None
