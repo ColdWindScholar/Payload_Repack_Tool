@@ -3,6 +3,7 @@ import hashlib
 import os.path
 import re
 import shutil
+import subprocess
 import sys
 from os import system
 from platform import uname
@@ -13,6 +14,39 @@ EX_UNSUPPORTED_DELTA = 100
 warn = lambda *args: print("brillo_update_payload: warning:", *args)
 strings = {}
 
+def call(exe, extra_path:str='', out=0):
+    if isinstance(exe, list):
+        cmd = exe
+        if extra_path:
+            cmd[0] = f"{extra_path}{exe[0]}"
+        cmd = [i for i in cmd if i]
+    else:
+        raise TypeError
+    conf = subprocess.CREATE_NO_WINDOW if os.name != 'posix' else 0
+    try:
+        ret = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, creationflags=conf)
+        for i in iter(ret.stdout.readline, b""):
+            if out == 0:
+                try:
+                    out_put = i.decode("utf-8").strip()
+                except (Exception, BaseException):
+                    out_put = i.decode("gbk").strip()
+                print(out_put)
+
+    except subprocess.CalledProcessError as e:
+        for i in iter(e.stdout.readline, b""):
+            if out == 0:
+                try:
+                    out_put = i.decode("utf-8").strip()
+                except (Exception, BaseException):
+                    out_put = i.decode("gbk").strip()
+                print(out_put)
+        return 2
+    except FileNotFoundError:
+        return 2
+    ret.wait()
+    return ret.returncode
 
 def die(*args):
     print("brillo_update_payload: error:", *args)
@@ -123,7 +157,7 @@ def extract_image_cros(*args):
     CLEANUP_FILES.append(kernel)
     root = create_tempfile('root.bin')
     CLEANUP_FILES.append(root)
-    system(f'cros_generate_update_payload --extract --image "{image}" --kern_path "{kernel}" --root_path "{root}"')
+    call(['cros_generate_update_payload', '--extract', '--image', image, '--kern_path', kernel, '--root_path', root])
     global FORCE_MAJOR_VERSION
     FORCE_MAJOR_VERSION = "2"
     globals()[partitions_array]['kernel'] = kernel
@@ -148,7 +182,7 @@ def extract_partition_brillo(image, partitions_array, part, part_file, part_map_
         magic = p.read(4)
     if magic == b':\xff&\xed':
         print(f"Converting Android sparse image {part}.img to RAW.")
-        system(f'simg2img "{part_file}" "{part_file}.raw"')
+        call(['simg2img', part_file, f'{part_file}.raw'])
         os.remove(part_file)
         os.rename(f"{part_file}.raw", part_file)
     with ZipFile(image, 'r') as f:
@@ -336,8 +370,7 @@ def cmd_generate():
     if APEX_INFO_FILE:
         GENERATOR_ARGS.append(f'--apex_info_file="{APEX_INFO_FILE}"')
     print(f"Running delta_generator with args: {GENERATOR_ARGS}")
-    cmd_args = ' '.join(GENERATOR_ARGS)
-    system(f'{GENERATOR} {cmd_args}')
+    call([GENERATOR, *GENERATOR_ARGS])
     print(f"Done generating {payload_type} update.")
 
 def validate_hash():
@@ -351,7 +384,12 @@ def validate_hash():
         die(f'You must specify --metadata_hash_file FILENAME')
 
 def cmd_hash():
-    system(f'"{GENERATOR}" --in_file="{options.FLAGS_unsigned_payload}" --signature_size="{options.FLAGS_signature_size}" --out_hash_file="{options.FLAGS_payload_hash_file}" --out_metadata_hash_file="{options.FLAGS_metadata_hash_file}"')
+    call([
+        GENERATOR, f'--in_file={options.FLAGS_unsigned_payload}',
+        f'--signature_size={options.FLAGS_signature_size}',
+        f'--out_hash_file={options.FLAGS_payload_hash_file}',
+        f'--out_metadata_hash_file={options.FLAGS_metadata_hash_file}'
+    ])
     print('Done generating hash.')
 
 def validate_sign():
@@ -379,8 +417,7 @@ def cmd_sign():
     ]
     if options.FLAGS_metadata_size_file:
         GENERATOR_ARGS.append(f'--out_metadata_size_file="{options.FLAGS_metadata_size_file}"')
-    cmd_arg = ' '.join(GENERATOR_ARGS)
-    os.system(f'"{GENERATOR}" "{cmd_arg}"')
+    call([GENERATOR, *GENERATOR_ARGS])
     print("Done signing payload.")
 
 def validate_properties():
@@ -390,7 +427,7 @@ def validate_properties():
         die("You must specify a non empty --properties_file FILENAME")
 
 def cmd_properties():
-    system(f'"{GENERATOR}" --in_file="{options.FLAGS_payload}" --properties_file="{options.FLAGS_properties_file}"')
+    call([GENERATOR, f'--in_file={options.FLAGS_payload}', f'--properties_file={options.FLAGS_properties_file}'])
 
 def validate_verify_and_check():
     if not options.FLAGS_payload:
@@ -403,8 +440,8 @@ def cmp_files(file1, file2):
     with open(file1, 'rb') as f1, open(file2, 'rb') as f2:
         offset = 0
         while True:
-            byte1 = f1.read(1)
-            byte2 = f2.read(1)
+            byte1 = f1.read(4)
+            byte2 = f2.read(4)
             if not byte1 and not byte2:
                 return 0
 
@@ -447,10 +484,8 @@ def cmd_verify():
         GENERATOR_ARGS.append(f'--old_partitions="{old_partitions}"')
     if FORCE_MAJOR_VERSION:
         GENERATOR_ARGS.append(f'--major_version="{FORCE_MAJOR_VERSION}"')
-    print(f"Running delta_generator to verify {payload_type} payload with args: \
-${GENERATOR_ARGS}")
-    cmd_arg = ' '.join(GENERATOR_ARGS)
-    system(f'"{GENERATOR}" "{cmd_arg}"')
+    print(f"Running delta_generator to verify {payload_type} payload with args: {GENERATOR_ARGS}")
+    call([GENERATOR, *GENERATOR_ARGS])
     print(f"Done applying {payload_type} update.")
     print("Checking the newly generated partitions against the target partitions")
     need_pause = False
@@ -489,25 +524,45 @@ def generate(payload: str = '', target_image: str = '', source_image: str = '', 
     options.FLAGS_payload = payload
     options.FLAGS_target_image = target_image
     options.FLAGS_source_image = source_image
+    options.FLAGS_metadata_size_file = metadata_size_file
+    options.FLAGS_max_timestamp = max_timestamp
+    options.FLAGS_partition_timestamps = partition_timestamps
+    options.FLAGS_disable_fec_computation = disable_fec_computation
+    options.FLAGS_disable_verity_computation = disable_verity_computation
+    options.FLAGS_is_partial_update = is_partial_update
+    options.FLAGS_full_boot = full_boot
+    options.FLAGS_disable_vabc = disable_vabc
+    options.FLAGS_enable_vabc_xor = enable_vabc_xor
+    options.FLAGS_force_minor_version = force_minor_version
+    options.FLAGS_compressor_types = compressor_types
+    validate_generate()
+    cmd_generate()
 
 
 def hash_(unsigned_payload: str = '', signature_size: str = '', metadata_hash_file: str = '',
           payload_hash_file: str = ''):
-    pass
+    options.FLAGS_unsigned_payload = unsigned_payload
+    options.FLAGS_signature_size = signature_size
+    options.FLAGS_metadata_hash_file = metadata_hash_file
+    options.FLAGS_payload_hash_file = payload_hash_file
+    validate_hash()
+    cmd_hash()
 
 
 def sign(unsigned_payload: str = '', signature_size: str = '', payload: str = '', metadata_signature_file: str = '',
          payload_signature_file: str = '', metadata_size_file: str = ''):
-    pass
+    options.FLAGS_unsigned_payload = unsigned_payload
+    options.FLAGS_signature_size = signature_size
+    options.FLAGS_payload = payload
+    options.FLAGS_metadata_signature_file = metadata_signature_file
+    options.FLAGS_payload_signature_file = payload_signature_file
+    options.FLAGS_metadata_size_file = metadata_size_file
+    validate_sign()
+    cmd_sign()
 
 
 def properties(payload: str = '', properties_file: str = '-'):
-    pass
-
-
-def verify(payload: str = '', target_image: str = '', source_image: str = ''):
-    pass
-
-
-def check(payload: str = '', target_image: str = '', source_image: str = ''):
-    pass
+    options.FLAGS_payload = payload
+    options.properties_file = properties_file
+    validate_properties()
+    cmd_properties()
