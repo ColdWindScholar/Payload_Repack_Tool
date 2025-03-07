@@ -256,7 +256,7 @@ from common import IsSparseImage
 from non_ab_ota import GenerateNonAbOtaPackage
 from ota_utils import (UNZIP_PATTERN, FinalizeMetadata, GetPackageMetadata,
                        PropertyFiles, SECURITY_PATCH_LEVEL_PROP_NAME, GetZipEntryOffset)
-from brillo_update_payload import generate, hash_, sign
+from brillo_update_payload import generate, hash_, sign, properties
 if sys.hexversion < 0x02070000:
     print("Python 2.7 or newer is required.", file=sys.stderr)
     sys.exit(1)
@@ -450,14 +450,8 @@ class Payload(object):
         # 1. Generate hashes of the payload and metadata files.
         payload_sig_file = common.MakeTempFile(prefix="sig-", suffix=".bin")
         metadata_sig_file = common.MakeTempFile(prefix="sig-", suffix=".bin")
-        cmd = ["brillo_update_payload", "hash",
-               "--unsigned_payload", self.payload_file,
-               "--signature_size", str(payload_signer.maximum_signature_size),
-               "--metadata_hash_file", metadata_sig_file,
-               "--payload_hash_file", payload_sig_file]
-        strcmd = "./bin/" + ' '.join(cmd)
-        os.system(strcmd)
-        #self._Run(cmd)
+        hash_(unsigned_payload=self.payload_file, signature_size=str(payload_signer.maximum_signature_size),
+              metadata_hash_file=metadata_sig_file, payload_hash_file=payload_sig_file)
 
         # 2. Sign the hashes.
         signed_payload_sig_file = payload_signer.Sign(payload_sig_file)
@@ -466,25 +460,14 @@ class Payload(object):
         # 3. Insert the signatures back into the payload file.
         signed_payload_file = common.MakeTempFile(prefix="signed-payload-",
                                                   suffix=".bin")
-        cmd = ["brillo_update_payload", "sign",
-               "--unsigned_payload", self.payload_file,
-               "--payload", signed_payload_file,
-               "--signature_size", str(payload_signer.maximum_signature_size),
-               "--metadata_signature_file", signed_metadata_sig_file,
-               "--payload_signature_file", signed_payload_sig_file]
-        strcmd = "./bin/" + ' '.join(cmd)
-        os.system(strcmd)
-        #self._Run(cmd)
+        sign(unsigned_payload=self.payload_file, payload=signed_payload_file, signature_size=str(payload_signer.maximum_signature_size), metadata_signature_file=signed_metadata_sig_file,
+             payload_signature_file=signed_payload_sig_file)
+
 
         # 4. Dump the signed payload properties.
         properties_file = common.MakeTempFile(prefix="payload-properties-",
                                               suffix=".txt")
-        cmd = ["brillo_update_payload", "properties",
-               "--payload", signed_payload_file,
-               "--properties_file", properties_file]
-        strcmd = "./bin/" + ' '.join(cmd)
-        os.system(strcmd)
-        #self._Run(cmd)
+        properties(payload=signed_payload_file, properties_file=properties_file)
 
         if self.secondary:
             with open(properties_file, "a") as f:

@@ -392,7 +392,7 @@ def validate_hash():
         die(f"You must specify the input unsigned payload with --unsigned_payload FILENAME")
     if not options.FLAGS_payload_hash_file:
         die(f'You must specify --payload_hash_file FILENAME')
-    if options.FLAGS_metadata_hash_file:
+    if not options.FLAGS_metadata_hash_file:
         die(f'You must specify --metadata_hash_file FILENAME')
 
 def cmd_hash():
@@ -421,11 +421,11 @@ def validate_sign():
 
 def cmd_sign():
     GENERATOR_ARGS = [
-    f'--in_file="{options.FLAGS_unsigned_payload}"',
-    f'--signature_size="{options.FLAGS_signature_size}"',
-    f'--payload_signature_file="{options.FLAGS_payload_signature_file}"',
-    f'--metadata_signature_file="{options.FLAGS_metadata_signature_file}"',
-    f'--out_file="{options.FLAGS_payload}"'
+    f'--in_file={options.FLAGS_unsigned_payload}',
+    f'--signature_size={options.FLAGS_signature_size}',
+    f'--payload_signature_file={options.FLAGS_payload_signature_file}',
+    f'--metadata_signature_file={options.FLAGS_metadata_signature_file}',
+    f'--out_file={options.FLAGS_payload}'
     ]
     if options.FLAGS_metadata_size_file:
         GENERATOR_ARGS.append(f'--out_metadata_size_file="{options.FLAGS_metadata_size_file}"')
@@ -475,7 +475,7 @@ def cmd_verify():
         CLEANUP_FILES.append(tmp_part)
         TMP_PARTITIONS[part]=tmp_part
         FILESIZE = os.path.getsize(DST_PARTITIONS[part])
-        print(f"Truncating ${TMP_PARTITIONS[part]} to {FILESIZE}")
+        print(f"Truncating {TMP_PARTITIONS[part]} to {FILESIZE}")
         truncate_file(TMP_PARTITIONS[part], FILESIZE)
     print(f"Verifying {payload_type} update.")
     GENERATOR_ARGS = [f'--in_file="{options.FLAGS_payload}"']
