@@ -128,14 +128,8 @@ def v_code(num=6) -> str:
         ret += s
     return ret
 
-def create_tempfile(pattern):
-    if not os.path.exists('tmp'):
-        os.makedirs('tmp', exist_ok=True)
-    temp_file = os.path.join('tmp', f'{pattern}{v_code()}')
-    open(temp_file, 'w').close()
-    return temp_file
 
-#create_tempfile = lambda pattern:mkstemp(prefix=pattern if pattern else 'tempfile.', dir=TMPDIR)[1]
+create_tempfile = lambda pattern:mkstemp(prefix=pattern if pattern else 'tempfile.', dir=TMPDIR)[1]
 create_tempdir = lambda pattern:mkdtemp(prefix=pattern if pattern else 'tempdir.', dir=TMPDIR)[1]
 def cleanup():
     try:
