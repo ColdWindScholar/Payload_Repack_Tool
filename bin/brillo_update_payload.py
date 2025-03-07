@@ -7,6 +7,7 @@ import subprocess
 import sys
 from os import system
 from platform import uname
+from random import randint, choice
 from tempfile import mkdtemp, mkstemp
 from zipfile import ZipFile
 
@@ -14,7 +15,7 @@ EX_UNSUPPORTED_DELTA = 100
 warn = lambda *args: print("brillo_update_payload: warning:", *args)
 strings = {}
 
-def call(exe, extra_path:str='', out=0):
+def call(exe, extra_path:str=None):
     if isinstance(exe, list):
         cmd = exe
         if extra_path:
@@ -22,21 +23,17 @@ def call(exe, extra_path:str='', out=0):
         cmd = [i for i in cmd if i]
     else:
         raise TypeError
-    conf = subprocess.CREATE_NO_WINDOW if os.name != 'posix' else 0
     try:
         ret = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT, creationflags=conf)
+                               stderr=subprocess.STDOUT)
         for i in iter(ret.stdout.readline, b""):
-            if out == 0:
                 try:
                     out_put = i.decode("utf-8").strip()
                 except (Exception, BaseException):
                     out_put = i.decode("gbk").strip()
                 print(out_put)
-
     except subprocess.CalledProcessError as e:
         for i in iter(e.stdout.readline, b""):
-            if out == 0:
                 try:
                     out_put = i.decode("utf-8").strip()
                 except (Exception, BaseException):
@@ -87,7 +84,7 @@ EXTRACT_IMAGE_PIDS = []
 CLEANUP_FILES = []
 FORCE_MAJOR_VERSION = ""
 FORCE_MINOR_VERSION = ""
-arch= uname().system
+arch= uname().machine
 
 GENERATOR=f"./bin/delta_generator_{arch}"
 # Path to the postinstall config file in target image if exists.
@@ -115,7 +112,30 @@ def read_option_uint(file_txt, option_key, default_value, *args):
 def truncate_file(file_path, file_size:int):
     open(file_path, 'a').truncate(file_size)
 
-create_tempfile = lambda pattern:mkstemp(prefix=pattern if pattern else 'tempfile.', dir=TMPDIR)[1]
+def v_code(num=6) -> str:
+    """
+    Get Random Str in Number and words
+    :param num: number of Random Str
+    :return:
+    """
+    ret = ""
+    for i in range(num):
+        num = randint(0, i)
+        # num = chr(random.randint(48,57))#ASCII表示数字
+        letter = chr(randint(97, 122))  # 取小写字母
+        letter_ = chr(randint(65, 90))  # 取大写字母
+        s = str(choice([num, letter, letter_]))
+        ret += s
+    return ret
+
+def create_tempfile(pattern):
+    if not os.path.exists('tmp'):
+        os.makedirs('tmp', exist_ok=True)
+    temp_file = os.path.join('tmp', f'{pattern}{v_code()}')
+    open(temp_file, 'w').close()
+    return temp_file
+
+#create_tempfile = lambda pattern:mkstemp(prefix=pattern if pattern else 'tempfile.', dir=TMPDIR)[1]
 create_tempdir = lambda pattern:mkdtemp(prefix=pattern if pattern else 'tempdir.', dir=TMPDIR)[1]
 def cleanup():
     try:
@@ -129,13 +149,6 @@ def cleanup():
 
 #todo:cleanup_on_exit
 #todo:cleanup_on_error
-
-def extract_file(zip_file, entry_name, destination):
-    with ZipFile(zip_file, 'r') as f:
-        try:
-            f.extract(entry_name, destination)
-        except:
-            die(f"Failed to extract {entry_name}")
 
 
 def hashlib_calculate(file_path, method: str):
@@ -177,7 +190,9 @@ def extract_partition_brillo(image, partitions_array, part, part_file, part_map_
                 break
     if not path_in_zip:
         die(f"Failed to find {part}.img")
-    extract_file(image, f"{path_in_zip}/{part}.img", part_file)
+    with ZipFile(image, 'r') as f:
+        with open(part_file, 'wb') as pa:
+            pa.write(f.read(f"{path_in_zip}/{part}.img"))
     with open(part_file, 'rb') as p:
         magic = p.read(4)
     if magic == b':\xff&\xed':
@@ -187,7 +202,8 @@ def extract_partition_brillo(image, partitions_array, part, part_file, part_map_
         os.rename(f"{part_file}.raw", part_file)
     with ZipFile(image, 'r') as f:
         if f"{path_in_zip}/{part}.map" in f.namelist():
-            f.extract(f"{path_in_zip}/{part}.map", part_map_file)
+            with open(part_map_file, 'wb') as pa:
+                pa.write(f.read(f"{path_in_zip}/{part}.map"))
     filesize = os.path.getsize(part_file)
     if filesize % 4096:
         if partitions_array == 'SRC_PARTITIONS':
@@ -197,7 +213,7 @@ def extract_partition_brillo(image, partitions_array, part, part_file, part_map_
             print(f"Rounding UP partition {part}.img to a multiple of 4 KiB.")
             filesize = (filesize + 4095) & -4096
         truncate_file(part_file, filesize)
-    print(f"Extracted {globals()[partitions_array][part]}: {filesize} bytes")
+    print(f"Extracted {partitions_array}[{part}]: {filesize} bytes")
 
 def extract_image_brillo(*args):
     image, partitions_array, partitions_order, *_ = args
@@ -206,7 +222,8 @@ def extract_image_brillo(*args):
     CLEANUP_FILES.append(ab_partitions_list)
     with ZipFile(image, 'r') as f:
         if "META/ab_partitions.txt" in f.namelist():
-            f.extract("META/ab_partitions.txt", ab_partitions_list)
+            with open(ab_partitions_list, 'wb') as ab:
+                ab.write(f.read("META/ab_partitions.txt"))
         else:
             warn("No ab_partitions.txt found. Using default.")
     with open(ab_partitions_list, 'r', encoding='utf-8', newline='\n') as f:
@@ -229,7 +246,8 @@ def extract_image_brillo(*args):
         CLEANUP_FILES.append(ue_config)
         with ZipFile(image, 'r') as f:
             if "META/update_engine_config.txt" in f.namelist():
-                f.extract("META/update_engine_config.txt", ue_config)
+                with open(ue_config, 'wb') as ue:
+                    ue.write(f.read("META/update_engine_config.txt"))
             else:
                 warn("No update_engine_config.txt found. Assuming pre-release image, using payload minor version 2")
         global FORCE_MINOR_VERSION
@@ -245,21 +263,24 @@ def extract_image_brillo(*args):
         CLEANUP_FILES.append(postinstall_config)
         with ZipFile(image, 'r') as f:
             if "META/postinstall_config.txt" in f.namelist():
-                f.extract("META/postinstall_config.txt", postinstall_config)
+                with open(postinstall_config, 'wb') as po:
+                    po.write(f.read("META/postinstall_config.txt"))
                 global POSTINSTALL_CONFIG_FILE
                 POSTINSTALL_CONFIG_FILE = postinstall_config
         dynamic_partitions_info = create_tempfile("dynamic_partitions_info.")
         CLEANUP_FILES.append(dynamic_partitions_info)
         with ZipFile(image, 'r') as f:
             if "META/dynamic_partitions_info.txt" in f.namelist():
-                f.extract("META/dynamic_partitions_info.txt", dynamic_partitions_info)
+                with open(dynamic_partitions_info, 'wb') as dy:
+                    dy.write(f.read("META/dynamic_partitions_info.txt"))
                 global DYNAMIC_PARTITION_INFO_FILE
                 DYNAMIC_PARTITION_INFO_FILE = dynamic_partitions_info
         apex_info = create_tempfile("apex_info.")
         CLEANUP_FILES.append(apex_info)
         with ZipFile(image, 'r') as f:
             if "META/apex_info.pb" in f.namelist():
-                f.extract("META/apex_info.pb", apex_info)
+                with open(apex_info, 'wb') as ap:
+                    ap.write(f.read("META/apex_info.pb"))
                 global APEX_INFO_FILE
                 APEX_INFO_FILE = apex_info
     for part in partitions:
@@ -267,21 +288,21 @@ def extract_image_brillo(*args):
         part_map_file =create_tempfile (f"{part}.map.")
         CLEANUP_FILES.append(part_file)
         CLEANUP_FILES.append(part_map_file)
-        extract_partition_brillo(image, partitions_array, part, part_file, part_map_file)
         #todo:multitasks
         EXTRACT_IMAGE_PIDS.append('')
         globals()[partitions_array][part] = part_file
         globals()[partitions_array+'_MAP'][part] = part_map_file
+        extract_partition_brillo(image, partitions_array, part, part_file, part_map_file)
 
 def cleanup_partition_array(partitions_array):
-    part_dict = globals()[partitions_array]
-    for part in part_dict.values():
+    part_dict = globals()[partitions_array].copy()
+    for part in part_dict:
         path = part_dict[part]
         if os.path.isfile(path):
             if not os.path.getsize(path):
-                del globals()[partitions_array][part]
+                globals()[partitions_array].pop(part)
         else:
-            del globals()[partitions_array][part]
+            globals()[partitions_array].pop(part)
 
 def extract_payload_images(payload_type):
     print(f"Extracting images for {payload_type} update.")
@@ -294,10 +315,7 @@ def extract_payload_images(payload_type):
     cleanup_partition_array("DST_PARTITIONS_MAP")
 
 def get_payload_type():
-    if options.FLAGS_source_image:
-        return 'full'
-    else:
-        return 'delta'
+    return 'full' if not options.FLAGS_source_image else 'delta'
 
 def validate_generate():
     if not options.FLAGS_payload:
@@ -327,10 +345,10 @@ def cmd_generate():
         if options.FLAGS_full_boot == 'true' and part == 'boot':
             old_partitions += ""
         else:
-            t = SRC_PARTITIONS[part]
+            t = SRC_PARTITIONS.get(part)
             old_partitions += t if t else ''
-        new_mapfiles += DST_PARTITIONS_MAP[part] if DST_PARTITIONS_MAP[part] else ''
-        old_mapfiles += SRC_PARTITIONS_MAP[part] if SRC_PARTITIONS_MAP[part] else ''
+        new_mapfiles += DST_PARTITIONS_MAP[part] if DST_PARTITIONS_MAP.get(part) else ''
+        old_mapfiles += SRC_PARTITIONS_MAP[part] if SRC_PARTITIONS_MAP.get(part) else ''
     GENERATOR_ARGS.append(f'--partition_names="{partition_names}"')
     GENERATOR_ARGS.append(f'--new_partitions="{new_partitions}"')
     GENERATOR_ARGS.append(f'--new_mapfiles="{new_mapfiles}"')
