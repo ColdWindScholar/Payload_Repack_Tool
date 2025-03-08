@@ -1,4 +1,2 @@
 protobuf>4.21.6
-bsdiff4==1.2.1
-enlighten==1.12.2
 cryptography
